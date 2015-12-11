@@ -2,7 +2,6 @@
 
 Class MainWindow
 
-
     Private Sub button_Click(sender As Object, e As RoutedEventArgs) Handles button.Click
         Dim unit As String
         Dim conn As ADODB.Connection
@@ -10,35 +9,44 @@ Class MainWindow
         Dim objExcel As Excel.Application
         Dim demo_mode As Boolean
 
-        unit = ""
-        'path = "\\sharepoint.washington.edu@SSL\DavWWWRoot\oim\proj\HRPayroll\Imp\Supervisory Org Cleanup\Role_mapping_2\"
-        Path = "C:\submissions\Corrections\"
+        path = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory)
         conn = New ADODB.Connection
         objExcel = New Excel.Application
         demo_mode = False
-        conn.Open("Provider=Microsoft.ACE.OLEDB.12.0;Data Source=\\CNU404BTBQ\Data Validation-Security Roles\WiW Security Group Database Step 2.accdb")
+
+        Try
+            conn.Open("Provider=Microsoft.ACE.OLEDB.12.0;Data Source=\\2UA3420JXM\Security Group Mapping\WiW Security Group Database Step 2.accdb")
+        Catch ex As Exception
+            MessageBox.Show("I couldn't open the database.")
+        End Try
 
         If radioButton1.IsChecked = True Then
             unit = "unitID"
-            generate_correction_report(objExcel, conn, UnitSelectionComboBox.SelectedItem.Tag.ToString, unit, path, demo_mode)  'file name, 
-            MessageBox.Show("Unit reports have been saved to" & Chr(10) & path & ".")
-        Else radioButton2.IsChecked = True
-            unit = "[Change Manager]"
-            generate_correction_report(objExcel, conn, UnitSelectionComboBox.SelectedItem.Tag.ToString, unit, path, demo_mode)  'file name, 
-            MessageBox.Show("Unit reports have been saved to" & Chr(10) & path & ".")
-
+            'generate_correction_report(objExcel, conn, UnitSelectionComboBox.SelectedItem.Tag.ToString, unit, path, demo_mode)  'file name, 
+            Dim unitid = Trim(Strings.Left(comboBox.SelectedItem.ToString, 3))
+            Debug.WriteLine(unitid)
+            generate_correction_report(objExcel, conn, unitid, unit, path, demo_mode)  'file name, 
+            Generate_Mail_Message(unitid, conn)
+            'MessageBox.Show("Unit reports have been saved to" & Chr(10) & path & ".")
+            'Else radioButton2.IsChecked = True
+            '   unit = "[Change Manager]"
+            '  generate_correction_report(objExcel, conn, UnitSelectionComboBox.SelectedItem.Tag.ToString, unit, path, demo_mode)  'file name, 
+            ' Generate_Mail_Message(UnitSelectionComboBox.SelectedItem.Tag.ToString, conn)
+            'MessageBox.Show("Unit reports have been saved to" & Chr(10) & path & ".")
+        Else
+            MessageBox.Show("Please select a type of report to generate.")
         End If
 
     End Sub
 
-    Private Sub UnitSelectionComboBox_SelectionChanged(sender As Object, e As SelectionChangedEventArgs) Handles UnitSelectionComboBox.SelectionChanged
-        'MessageBox.Show(UnitSelectionComboBox.SelectedItem.Tag.ToString)
-    End Sub
+    'Private Sub UnitSelectionComboBox_SelectionChanged(sender As Object, e As SelectionChangedEventArgs) Handles UnitSelectionComboBox.SelectionChanged
+    'MessageBox.Show(UnitSelectionComboBox.SelectedItem.Tag.ToString)
+    'End Sub
 
     Function generate_correction_report(objExcel, conn, where_clause, where_field, folder, demo_mode)
-        Dim file_path = ""
+        Dim file_path As String
         Dim rec As ADODB.Recordset
-        Dim file_ext = ".xlsx"
+        Dim file_ext As String
         Dim workbook
         Dim worksheet
         Dim file_name_append As String
@@ -56,8 +64,6 @@ Class MainWindow
         file_path = ""
         rec = New ADODB.Recordset
         file_ext = ".xlsx"
-        'workbook
-        'worksheet
         file_name_append = ""
         sSql = ""
         Condition = ""
@@ -77,22 +83,29 @@ Class MainWindow
         Else
             If where_clause = "" Then
                 Condition = ""
-                sSql = "SELECT count(unitID) AS ""Unit Count"", ""All Units"" AS ""Unit"", SUM(EID_Ct) AS ""EID_Ct"", ""All CMs"" AS ""Change Manager"" FROM Role_correction_summary" & Condition
+                sSql = "SELECT count(unitID) AS ""Unit Count"", """ &
+                        "All Units"" AS ""Unit"", " &
+                        " SUM(EID_Ct) As ""EID_Ct"", " &
+                        """All CMs"" As ""Change Manager"" " &
+                        "FROM Role_correction_summary" &
+                        Condition
             Else
                 If where_field = "unitID" Then
                     Condition = " WHERE " & where_field & " = " & where_clause
                 ElseIf where_field = "unit"
                     Condition = " WHERE " & where_field & " = """ & where_clause & """ "
                 End If
-                sSql = "SELECT * FROM Role_correction_summary" & Condition
+                sSql = "Select * FROM Role_correction_summary" & Condition
             End If
 
         End If
 
-        'sSql = "SELECT * FROM submittals"
-        Debug.WriteLine(sSql)
+        Try
+            rec.Open(sSql, conn)
+        Catch ex As Exception
+            MessageBox.Show("Coudn't Find Records.")
+        End Try
 
-        rec.Open(sSql, conn)
         j = 0
         If (rec.BOF And rec.EOF) Then
             Debug.WriteLine("No records found.")
@@ -132,25 +145,37 @@ Class MainWindow
         End If
         rec.Close()
 
-        file_path = folder & file_name & file_name_append & file_ext
+        file_path = folder & "\" & file_name & file_name_append & file_ext
         file_path = Replace(file_path, "&", "")
-        Debug.WriteLine(file_path)
 
         If debug_state = True Then
             objExcel.Visible = True
         End If
         objExcel.DisplayAlerts = 0 ' Don't display any messages about conversion and so forth
-        workbook = objExcel.Workbooks.Add
 
-        worksheet = workbook.Worksheets("Sheet1")
-        worksheet.Name = "Groups"
+        Try
+            workbook = objExcel.Workbooks.Add
+        Catch ex As Exception
+            MessageBox.Show("I couldn't add a worksheet!")
+        End Try
+
+        Try
+            worksheet = workbook.Worksheets("Sheet1")
+        Catch ex As Exception
+            MessageBox.Show("I couldn't activate the new worksheet!")
+        End Try
+
+        Try
+            worksheet.Name = "Groups"
+        Catch ex As Exception
+            MessageBox.Show("I couldn't rename the worksheet!")
+        End Try
+
         Try
             workbook.SaveAs(FileName:=file_path)
         Catch ex As Exception
-            Debug.WriteLine("File was open.")
-            'objExcel.Quit()
+            MessageBox.Show("File was open.")
         End Try
-
 
         generate_by_role_report(objExcel, conn, where_clause, where_field, file_path, "Groups", record_count, demo_mode, workbook)
 
@@ -216,9 +241,14 @@ Class MainWindow
             End If
         End If
 
-        sSql = "SELECT * FROM Role_correction_report" & condition
+        sSql = "Select * FROM Role_correction_report" & condition
 
-        rec.Open(sSql, conn)
+        Try
+            rec.Open(sSql, conn)
+        Catch ex As Exception
+            MessageBox.Show("Couldn't Open Role Correction Report")
+        End Try
+
         generate_worksheet(objExcel, rec, file_path, worksheet_name, workbook)
         rec.Close()
 
@@ -236,7 +266,7 @@ Class MainWindow
 
         worksheet.Rows("1").Insert
 
-        sSql = "SELECT role_code, role_title, role_description FROM roles WHERE role_order is not null ORDER BY  `role_order` asc"
+        sSql = "Select role_code, role_title, role_description FROM roles WHERE role_order Is Not null ORDER BY  `role_order` asc"
         'Debug.WriteLine(sSql)
         rec.Open(sSql, conn)
         If (rec.BOF And rec.EOF) Then
@@ -406,7 +436,7 @@ Class MainWindow
         worksheet.PageSetup.PrintTitleColumns = "$A:$G"
         worksheet.PageSetup.CenterHeader = where_clause & Chr(10) & "Correction Proof of " & worksheet_name
         worksheet.PageSetup.RightHeader = "&D"
-        worksheet.PageSetup.LeftFooter = "This worksheets presents changes identified by the unit, subunit or department Readiness Lead in coordination with the units' Change Manager.  Please direct further corrections to your Change Manager."
+        worksheet.PageSetup.LeftFooter = "This worksheets presents changes identified by the unit, subunit or department Readiness Lead in coordination with the unit's Change Manager."
         worksheet.PageSetup.RightFooter = "&P of &N"
 
         workbook.Save()
@@ -519,5 +549,152 @@ Class MainWindow
 
         TransposeDim = tempArray
     End Function
+
+    Function Generate_Mail_Message(unitID, conn)
+        Dim appOutlook As Outlook.Application
+        Dim msg As Outlook.MailItem
+        Dim rec As ADODB.Recordset
+        Dim sSql As String
+        Dim unit_cm As String
+        Dim sub_unit As String
+        Dim unit As String
+        Dim first As String
+        Dim email As String
+
+        unit = ""
+        sub_unit = ""
+        unit_cm = "Copp"
+
+        rec = New ADODB.Recordset
+        appOutlook = New Outlook.Application
+
+        sSql = "Select unit_name, sub_unit, unit_cm from units where unitid = " & unitID
+        rec.Open(sSql, conn)
+        Dim i = 0
+        If (rec.BOF And rec.EOF) Then
+            Debug.WriteLine("No records found.")
+        Else
+            For Each fld In rec.Fields
+                If i = 0 Then
+                    unit = fld.value
+                ElseIf i = 1 Then
+                    sub_unit = fld.value
+                ElseIf i = 2 Then
+                    unit_cm = fld.value.ToString
+                End If
+                i = i + 1
+            Next fld
+        End If
+
+        If unit_cm = "Copp" Then
+            email = "coppk@uw.edu"
+            first = "Karen"
+        ElseIf unit_cm = "Wiggers" Then
+            email = "hw15@uw.edu"
+            first = "Hannah"
+        ElseIf unit_cm = "Toledo" Then
+            email = "vToledo@uw.edu"
+            first = "Valerie"
+        ElseIf unit_cm = "Mow" Then
+            email = "stevemow@uw.edu"
+            first = "Steven"
+        ElseIf unit_cm = "Greemwood" Then
+            email = "gail1@uw.edu"
+            first = "Gail"
+        End If
+
+        Dim subject = "Role Mapping Corrections for " & sub_unit & " are ready to go"
+
+        Dim msg_body = "Hello " & first & ",<br><br>" &
+                        "I wanted to let you know that Sophie and I have wrapped up incorporating the changes to the " & sub_unit & " dataset that you and your Readiness Lead identified.<br><br>" &
+                        "The document has been saved to the old SharePoint site, and is available here: " &
+                        "<a href=""https://sharepoint.washington.edu/oim/proj/HRPayroll/Imp/Supervisory%20Org%20Cleanup/Role_mapping_2/Corrections/WiW%20Security%20Group%20Corrections_" & Replace(sub_unit, " ", "%20") & "%20(" & Replace(unit, " ", "%20") & ").xlsx"">" &
+                        "https//sharepoint.washington.edu/oim/proj/HRPayroll/Imp/Supervisory%20Org%20Cleanup/Role_mapping_2/Corrections/WiW%20Security%20Group%20Corrections_" & sub_unit & "%20(" & unit & ").xlsx</a><br><br>" &
+                        "I'll leave a hard copy of the changes on your deskchair.<br><br>" &
+                        "Please let me know if I can be of further assistance.<br><br>" &
+                        "Bill Bascus"
+
+        msg = appOutlook.CreateItem(Outlook.OlItemType.olMailItem)
+        msg.To = email
+        msg.Subject = subject
+        msg.HTMLBody = msg_body
+        msg.Display(True)
+
+    End Function
+
+    Sub Generate_UnitSelectionComboBox2()
+        Dim rec As ADODB.Recordset
+        Dim conn As ADODB.Connection
+        Dim sSql As String
+        Dim cbox As System.Windows.Controls.ComboBox
+        Dim cboxitem As System.Windows.Controls.ComboBoxItem
+        Dim tag As String
+        Dim content As String
+
+
+        cbox = New ComboBox
+
+        rec = New ADODB.Recordset
+        conn = New ADODB.Connection
+
+        conn.Open("Provider=Microsoft.ACE.OLEDB.12.0;Data Source=\\2UA3420JXM\Security Group Mapping\WiW Security Group Database Step 2.accdb")
+
+        sSql = "SELECT units.unitID, units.unit_name  & "": "" & units.sub_unit FROM units " &
+                    "WHERE sub_unit <> ""A-All Roll-Up"" " &
+                    "And Ready_For_WD = True " &
+                    "ORDER BY units.unit_name, units.sub_unit"
+
+        Try
+            rec.Open(sSql, conn)
+        Catch
+            Debug.WriteLine(sSql)
+        End Try
+
+        If (rec.BOF And rec.EOF) Then
+            Debug.WriteLine("No records found.")
+        Else
+            Do While Not rec.EOF
+                Dim i = 0
+                For Each fld In rec.Fields
+                    If i = 0 Then
+                        tag = fld.value.ToString
+                        'Debug.WriteLine(tag)
+                    Else
+                        content = Replace(fld.value.ToString, "&", "")
+                        content = Replace(content, "-", "")
+                        'Debug.WriteLine(content)
+                    End If
+
+
+                    i = i + 1
+                Next fld
+                cboxitem = New ComboBoxItem()
+                cboxitem.Tag = tag
+                cboxitem.Content = content
+                cboxitem.HorizontalContentAlignment = HorizontalAlignment.Left
+                cboxitem.VerticalContentAlignment = VerticalAlignment.Top
+
+                Try
+                    comboBox.Items.Add(tag & " - " & content)
+                    'cbox.Items.Add(cboxitem)
+                Catch ex As Exception
+                    Debug.WriteLine(ex.ToString)
+                End Try
+                rec.MoveNext()
+            Loop
+        End If
+
+        Try
+            'Debug.WriteLine(canvas1.Children.Count.ToString)
+            'Me.canvas1.Children.Add(cbox)
+        Catch ex As Exception
+            Debug.WriteLine(ex.ToString)
+        End Try
+
+    End Sub
+
+    Private Sub Window_Loaded(sender As Object, e As RoutedEventArgs) Handles Me.Loaded
+        Generate_UnitSelectionComboBox2()
+    End Sub
 
 End Class
