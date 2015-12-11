@@ -177,7 +177,7 @@ Class MainWindow
             MessageBox.Show("File was open.")
         End Try
 
-        generate_by_role_report(objExcel, conn, where_clause, where_field, file_path, "Groups", record_count, demo_mode, workbook)
+        generate_by_role_report(objExcel, conn, where_clause, where_field, file_path, unit, "Groups", record_count, demo_mode, workbook)
 
         If demo_mode = False Then
             workbook.Close()
@@ -192,7 +192,7 @@ Class MainWindow
 
     End Function
 
-    Function generate_by_role_report(objExcel, conn, where_clause, where_field, file_path, worksheet_name, record_count, demo_mode, workbook)
+    Function generate_by_role_report(objExcel, conn, where_clause, where_field, file_path, unit, worksheet_name, record_count, demo_mode, workbook)
         Dim sSql As String
         Dim rec As ADODB.Recordset
         Dim worksheet
@@ -434,7 +434,7 @@ Class MainWindow
         worksheet.PageSetup.PaperSize = Excel.XlPaperSize.xlPaper11x17
         worksheet.PageSetup.PrintTitleRows = "$1:$2"
         worksheet.PageSetup.PrintTitleColumns = "$A:$G"
-        worksheet.PageSetup.CenterHeader = where_clause & Chr(10) & "Correction Proof of " & worksheet_name
+        worksheet.PageSetup.CenterHeader = unit & Chr(10) & "Correction Proof of " & worksheet_name
         worksheet.PageSetup.RightHeader = "&D"
         worksheet.PageSetup.LeftFooter = "This worksheets presents changes identified by the unit, subunit or department Readiness Lead in coordination with the unit's Change Manager."
         worksheet.PageSetup.RightFooter = "&P of &N"
@@ -616,6 +616,7 @@ Class MainWindow
 
         msg = appOutlook.CreateItem(Outlook.OlItemType.olMailItem)
         msg.To = email
+        msg.CC = "slsp@uw.edu"
         msg.Subject = subject
         msg.HTMLBody = msg_body
         msg.Display(True)
